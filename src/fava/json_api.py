@@ -235,6 +235,7 @@ class Context:
 
 @api_endpoint
 def get_context(entry_hash: str) -> Context:
+
     """Entry context."""
     entry, before, after, slice_, sha256sum = g.ledger.context(entry_hash)
     return Context(serialise(entry), before, after, sha256sum, slice_)

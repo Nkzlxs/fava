@@ -11,10 +11,13 @@
   import { _ } from "../i18n";
   import { notify_err } from "../notifications";
   import { payees } from "../stores";
+  import { entryBalanceAmount, isEntryBalanced } from "../stores/misc";
+  import { format, parse } from "date-fns";
 
   import AddMetadataButton from "./AddMetadataButton.svelte";
   import EntryMetadata from "./EntryMetadata.svelte";
   import PostingSvelte from "./Posting.svelte";
+  import { onMount } from "svelte";
 
   export let entry: Transaction;
   let suggestions: string[] | undefined;
@@ -91,11 +94,80 @@
       entry.postings = entry.postings;
     }
   }
+
+  // check for balanced entry every render
+  $: {
+    $entryBalanceAmount = 0;
+    entry.postings.forEach((aPost) => {
+      if (aPost.amount == "") {
+        $entryBalanceAmount += 0;
+      } else {
+        $entryBalanceAmount += parseFloat(aPost.amount);
+      }
+    });
+    if ($entryBalanceAmount !== 0) {
+      $isEntryBalanced = false;
+    } else {
+      $isEntryBalanced = true;
+    }
+  }
+
+  let currentDateString = returnDateString(entry.date);
+
+  function updateDate() {
+    currentDateString = returnDateString(currentDateString);
+    entry.date = currentDateString;
+  }
+
+  function returnDateString(dateString: string) {
+    // Format strings for the expected date formats
+    const formatStrings = [
+      "dd MMM yyyy",
+      "d MMM yyyy",
+      "yyyy MMM d",
+      "yyyy MMM dd",
+      "yyyy MM d",
+      "yyyy MM dd",
+      "yyyy/MM/dd",
+      "yyyy-MM-dd",
+      "yyyy/MMM/dd",
+      "yyyyMMdd",
+    ];
+
+    let parsedDate: number | Date | null = null;
+    let formattedDate = "Invalid date"; // Default to "Invalid date"
+
+    formatStrings.forEach((dateFormat) => {
+      if (parsedDate === null) {
+        // Check if the date has been successfully parsed
+        const parsed = parse(dateString, dateFormat, new Date());
+
+        if (!isNaN(parsed.getTime())) {
+          // Check if the parsing was successful
+          parsedDate = parsed;
+          formattedDate = format(parsedDate, "yyyy-MM-dd");
+        }
+      }
+    });
+
+    return formattedDate;
+  }
+
+  let firstInput: HTMLInputElement;
+  onMount(() => {
+    firstInput.focus();
+  });
 </script>
 
 <div>
   <div class="flex-row">
-    <input type="date" bind:value={entry.date} required />
+    <input
+      type="text"
+      bind:value={currentDateString}
+      on:blur={updateDate}
+      bind:this={firstInput}
+      required
+    />
     <input type="text" name="flag" bind:value={entry.flag} required />
     <!-- svelte-ignore a11y-label-has-associated-control -->
     <label>

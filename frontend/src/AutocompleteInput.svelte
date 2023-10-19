@@ -66,11 +66,14 @@
     index = Math.min(index, filteredSuggestions.length - 1);
   }
 
+  let suggestionSelected = true;
+
   function select(suggestion: string) {
     value =
       input && valueSelector ? valueSelector(suggestion, input) : suggestion;
     dispatch("select", input);
     hidden = true;
+    suggestionSelected = true;
   }
 
   function mousedown(event: MouseEvent, suggestion: string) {
@@ -81,8 +84,14 @@
 
   function keydown(event: KeyboardEvent) {
     if (event.key === "Enter") {
-      const suggestion = filteredSuggestions[index]?.suggestion;
-      if (index > -1 && !hidden && suggestion) {
+      let suggestion = filteredSuggestions[index]?.suggestion;
+
+      // if enter press without selecting anything
+      // default to the first one
+      if (index == -1 && filteredSuggestions.length > 0) {
+        suggestion = filteredSuggestions[0]?.suggestion;
+      }
+      if (!hidden && suggestion) {
         event.preventDefault();
         select(suggestion);
       } else {
@@ -95,13 +104,29 @@
         event.stopPropagation();
         index = -1;
       }
+      event.stopPropagation();
+      input.blur();
       hidden = true;
+      suggestionSelected = true;
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       index = index === 0 ? filteredSuggestions.length - 1 : index - 1;
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
       index = index === filteredSuggestions.length - 1 ? 0 : index + 1;
+    } else if (event.key === "Tab" && !suggestionSelected) {
+      event.preventDefault();
+      event.stopPropagation();
+      index = index === filteredSuggestions.length - 1 ? 0 : index + 1;
+
+      // if press tab with only 1 choice, choose it
+      if (index == 0 && filteredSuggestions.length == 1) {
+        let suggestion = filteredSuggestions[0]?.suggestion;
+
+        if (suggestion) {
+          select(suggestion);
+        }
+      }
     }
   }
 </script>
@@ -115,13 +140,15 @@
     use:keyboardShortcut={key}
     on:blur={() => {
       hidden = true;
-      dispatch("blur", input);
+      suggestionSelected = true;
     }}
     on:focus={() => {
       hidden = false;
+      suggestionSelected = true;
     }}
     on:input={() => {
       hidden = false;
+      suggestionSelected = false;
     }}
     on:keydown={keydown}
     {placeholder}

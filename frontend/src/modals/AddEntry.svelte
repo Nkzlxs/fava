@@ -4,7 +4,9 @@
   import Entry from "../entry-forms/Entry.svelte";
   import { todayAsString } from "../format";
   import { _ } from "../i18n";
+  import { keyboardShortcut } from "../keyboard-shortcuts";
   import { addEntryContinue } from "../stores/editor";
+  import { entryBalanceAmount, isEntryBalanced } from "../stores/misc";
   import { closeOverlay, urlHash } from "../stores/url";
 
   import ModalBase from "./ModalBase.svelte";
@@ -23,16 +25,16 @@
     await saveEntries([entry]);
     const added_entry_date = entry.date;
     // Reuse the date of the entry that was just added.
-    entry = entry.constructor(added_entry_date);
-    if (!$addEntryContinue) {
-      closeOverlay();
-    }
+    entry = new Transaction(todayAsString());
+    console.log("clsoe over lay!!!");
+    closeOverlay();
   }
 
   $: shown = $urlHash === "add-transaction";
 </script>
 
 <ModalBase {shown} focus=".payee input">
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
   <form on:submit|preventDefault={submit}>
     <h3>
       {_("Add")}
@@ -51,13 +53,26 @@
       {/each}
     </h3>
     <Entry bind:entry />
+    {#if !$isEntryBalanced}
+      <div class="flex-row">
+        <span class="spacer" />
+        Not balanced: {$entryBalanceAmount}
+      </div>
+    {/if}
+
     <div class="flex-row">
       <span class="spacer" />
       <label>
         <input type="checkbox" bind:checked={$addEntryContinue} />
         <span>{_("continue")}</span>
       </label>
-      <button type="submit">{_("Save")}</button>
+      <button
+        type="submit"
+        disabled={!$isEntryBalanced}
+        use:keyboardShortcut={{ key: "Control+s", mac: "Meta+s" }}
+      >
+        {_("Save")}
+      </button>
     </div>
   </form>
 </ModalBase>

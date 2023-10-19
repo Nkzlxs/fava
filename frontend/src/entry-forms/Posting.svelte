@@ -2,7 +2,9 @@
   import AutocompleteInput from "../AutocompleteInput.svelte";
   import type { Posting } from "../entries";
   import { _ } from "../i18n";
+  import { keyboardShortcut } from "../keyboard-shortcuts";
   import { currencies } from "../stores";
+  import { isEditingEntry } from "../stores/misc";
 
   import AccountInput from "./AccountInput.svelte";
 
@@ -14,8 +16,57 @@
   export let remove: () => void;
   export let add: () => void;
 
-  $: amount_number = posting.amount.replace(/[^\-?0-9.]/g, "");
-  $: amountSuggestions = $currencies.map((c) => `${amount_number} ${c}`);
+  let debitValue: string = "";
+  let creditValue: string = "";
+  let entryError: boolean = false;
+
+  if ($isEditingEntry) {
+    let val = parseFloat(posting.amount);
+    if (val > 0) {
+      debitValue = posting.amount;
+    } else {
+      creditValue = posting.amount.replace("-", "");
+    }
+    entryError = false;
+  }
+
+  $: {
+    try {
+      let a = parseFloat(debitValue);
+      let b = parseFloat(creditValue);
+      if (a > 0 && Number.isNaN(b)) {
+        posting.amount = debitValue;
+        entryError = false;
+      } else if (b > 0 && Number.isNaN(a)) {
+        posting.amount = `-${creditValue}`;
+        entryError = false;
+      } else {
+        posting.amount = "";
+        entryError = true;
+      }
+    } catch {
+      posting.amount = "";
+      entryError = true;
+    }
+  }
+
+  $: checkValidity = (val: string) =>
+    entryError ? _("Debit Credit error") : "";
+
+  let debit_amount_number = "";
+  let debitAmountSuggestions: string[] = [];
+  let credit_amount_number = "";
+  let creditAmountSuggestions: string[] = [];
+  $: {
+    debit_amount_number = debitValue.replace(/[^\-?0-9.]/g, "");
+    debitAmountSuggestions = $currencies.map(
+      (c) => `${debit_amount_number} ${c}`
+    );
+    credit_amount_number = creditValue.replace(/[^\-?0-9.]/g, "");
+    creditAmountSuggestions = $currencies.map(
+      (c) => `${credit_amount_number} ${c}`
+    );
+  }
 
   let drag = false;
   let draggable = true;
@@ -72,14 +123,23 @@
   />
   <AutocompleteInput
     className="amount"
-    placeholder={_("Amount")}
-    suggestions={amountSuggestions}
-    bind:value={posting.amount}
+    placeholder={_("Debit Amount")}
+    suggestions={debitAmountSuggestions}
+    bind:value={debitValue}
+    {checkValidity}
+  />
+  <AutocompleteInput
+    className="amount"
+    placeholder={_("Credit Amount")}
+    suggestions={creditAmountSuggestions}
+    bind:value={creditValue}
+    {checkValidity}
   />
   <button
     type="button"
     class="muted round add-row"
     on:click={add}
+    on:keydown={add}
     title={_("Add posting")}
   >
     +
