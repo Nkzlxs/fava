@@ -141,6 +141,7 @@
     on:blur={() => {
       hidden = true;
       suggestionSelected = true;
+      dispatch("blur", input);
     }}
     on:focus={() => {
       hidden = false;
