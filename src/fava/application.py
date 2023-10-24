@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import mimetypes
 from dataclasses import fields
-from datetime import date
+from datetime import date, timedelta
 from datetime import datetime
 from functools import lru_cache
 from io import BytesIO
@@ -25,6 +25,7 @@ from urllib.parse import parse_qsl
 from urllib.parse import urlencode
 from urllib.parse import urlparse
 from urllib.parse import urlunparse
+from flask_login import login_required
 
 import markdown2  # type: ignore[import]
 from beancount import __version__ as beancount_version
@@ -43,7 +44,7 @@ from flask_babel import get_translations
 from markupsafe import Markup
 from werkzeug.utils import secure_filename
 
-from fava import __version__ as fava_version
+from fava import __version__ as fava_version, secrets_loader, user_management
 from fava import LANGUAGES
 from fava import template_filters
 from fava.context import g
@@ -61,6 +62,8 @@ from fava.util import setup_logging
 from fava.util import slugify
 from fava.util.date import Interval
 from fava.util.excel import HAVE_EXCEL
+
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Iterable
@@ -174,7 +177,10 @@ def _setup_template_config(fava_app: Flask) -> None:
     @fava_app.context_processor
     def _template_context() -> dict[str, FavaLedger | type[ChartApi]]:
         """Inject variables into the template context."""
-        return {"ledger": g.ledger, "chart_api": ChartApi}
+        if hasattr(g,"ledger"):
+            return {"ledger": g.ledger, "chart_api": ChartApi}
+        else:
+            return {}
 
 
 def _setup_filters(
@@ -258,6 +264,7 @@ def _setup_filters(
 def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
     @fava_app.route("/")
     @fava_app.route("/<bfile>/")
+    @login_required
     def index() -> WerkzeugResponse:
         """Redirect to the Income Statement (of the given or first file)."""
         if not g.beancount_file_slug:
@@ -269,11 +276,13 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
         return redirect(f"{index_url}{default_page}")
 
     @fava_app.route("/<bfile>/account/<name>/")
+    @login_required
     def account(name: str) -> str:
         """Get the account report."""
         return render_template("_layout.html", content="", name=name)
 
     @fava_app.route("/<bfile>/document/", methods=["GET"])
+    @login_required
     def document() -> Response:
         """Download a document."""
         filename = request.args.get("filename", "")
@@ -282,6 +291,7 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
         return abort(404)
 
     @fava_app.route("/<bfile>/statement/", methods=["GET"])
+    @login_required
     def statement() -> Response:
         """Download a statement file."""
         entry_hash = request.args.get("entry_hash", "")
@@ -293,6 +303,7 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
         "/<bfile>/holdings"
         "/by_<any(account,currency,cost_currency):aggregation_key>/",
     )
+    @login_required
     def holdings_by(
         aggregation_key: str,
     ) -> str:
@@ -303,6 +314,7 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
         )
 
     @fava_app.route("/<bfile>/<report_name>/")
+    @login_required
     def report(report_name: str) -> str:
         """Endpoint for most reports."""
         if report_name in CLIENT_SIDE_REPORTS:
@@ -315,6 +327,7 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
         "/<bfile>/extension/<extension_name>/<endpoint>",
         methods=["GET", "POST", "PUT", "DELETE"],
     )
+    @login_required
     def extension_endpoint(extension_name: str, endpoint: str) -> Response:
         ext = g.ledger.extensions.get_extension(extension_name)
         key = (endpoint, request.method)
@@ -329,6 +342,7 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
         )
 
     @fava_app.route("/<bfile>/extension_js_module/<extension_name>.js")
+    @login_required
     def extension_js_module(extension_name: str) -> Response:
         """Endpoint for extension module source."""
         ext = g.ledger.extensions.get_extension(extension_name)
@@ -337,6 +351,7 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
         return send_file(ext.extension_dir / f"{ext.name}.js")
 
     @fava_app.route("/<bfile>/extension/<extension_name>/")
+    @login_required
     def extension_report(extension_name: str) -> str:
         """Endpoint for extension reports."""
         ext = g.ledger.extensions.get_extension(extension_name)
@@ -353,6 +368,7 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
         )
 
     @fava_app.route("/<bfile>/download-query/query_result.<result_format>")
+    @login_required
     def download_query(result_format: str) -> Response:
         """Download a query result."""
         name, data = g.ledger.query_shell.query_to_file(
@@ -365,6 +381,7 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
         return send_file(data, as_attachment=True, download_name=filename)
 
     @fava_app.route("/<bfile>/download-journal/")
+    @login_required
     def download_journal() -> Response:
         """Download a Journal file."""
         now = datetime.now().replace(microsecond=0)
@@ -374,6 +391,7 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
 
     @fava_app.route("/<bfile>/help/", defaults={"page_slug": "_index"})
     @fava_app.route("/<bfile>/help/<page_slug>")
+    @login_required
     def help_page(page_slug: str) -> str:
         """Fava's included documentation."""
         if page_slug not in HELP_PAGES:
@@ -396,6 +414,7 @@ def _setup_routes(fava_app: Flask) -> None:  # noqa: PLR0915
         )
 
     @fava_app.route("/jump")
+    @login_required
     def jump() -> WerkzeugResponse:
         """Redirect back to the referer, replacing some parameters.
 
@@ -438,7 +457,6 @@ def _setup_babel(fava_app: Flask) -> None:
         # for Flask-Babel >=3.0
         babel = Babel(fava_app, locale_selector=_get_locale)
 
-
 def create_app(
     files: Iterable[Path | str],
     *,
@@ -455,6 +473,12 @@ def create_app(
         read_only: Whether to run in read-only mode.
     """
     fava_app = Flask("fava")
+    fava_app.secret_key = secrets_loader.SECRET_KEY
+    fava_app.config["REMEMBER_COOKIE_DURATION"] = timedelta(days=14)
+
+    user_management.init(fava_app)
+
+
     fava_app.register_blueprint(json_api, url_prefix="/<bfile>/api")
     fava_app.json = FavaJSONProvider(fava_app)
     _setup_template_config(fava_app)

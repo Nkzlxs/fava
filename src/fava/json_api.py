@@ -20,7 +20,8 @@ from flask import Blueprint
 from flask import get_template_attribute
 from flask import jsonify
 from flask import request
-from flask_babel import gettext  # type: ignore[import]
+from flask_babel import gettext
+from flask_login import current_user, fresh_login_required, login_required  # type: ignore[import]
 
 from fava.beans.abc import Document
 from fava.beans.abc import Event
@@ -35,9 +36,9 @@ from fava.internal_api import get_errors
 from fava.internal_api import get_ledger_data
 from fava.serialisation import deserialise
 from fava.serialisation import serialise
+from fava.user_management import login_manager
 
 if TYPE_CHECKING:  # pragma: no cover
-    from datetime import date
     from decimal import Decimal
 
     from flask.wrappers import Response
@@ -45,7 +46,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from fava.core.ingest import FileImporters
     from fava.core.tree import SerialisedTreeNode
     from fava.internal_api import ChartData
-    from fava.util.date import DateRange
+from datetime import date
+from fava.util.date import DateRange
 
 
 json_api = Blueprint("json_api", __name__)
@@ -136,6 +138,8 @@ def api_endpoint(func: Callable[..., Any]) -> Callable[[], Response]:
     parameters are extracted from the URL query string and passed to the
     decorated endpoint handler.
     """
+
+
     method, _, name = func.__name__.partition("_")
     if method not in {"get", "delete", "put"}:  # pragma: no cover
         raise ValueError(f"Invalid endpoint function name: {func.__name__}")
@@ -144,6 +148,9 @@ def api_endpoint(func: Callable[..., Any]) -> Callable[[], Response]:
     @json_api.route(f"/{name}", methods=[method])
     @wraps(func)
     def _wrapper() -> Response:
+        print(current_user.is_authenticated())
+        if not current_user.is_authenticated():
+            return login_manager.unauthorized()
         if validator is not None:
             if method == "put":
                 request_json = request.get_json(silent=True)
@@ -175,6 +182,7 @@ class DocumentDirectoryMissingError(FavaAPIError):
 
 
 @api_endpoint
+@fresh_login_required
 def get_changed() -> bool:
     """Check for file changes."""
     return g.ledger.changed()
@@ -185,6 +193,7 @@ api_endpoint(get_ledger_data)
 
 
 @api_endpoint
+@fresh_login_required
 def get_payee_accounts(payee: str) -> list[str]:
     """Rank accounts for the given payee."""
     return g.ledger.attributes.payee_accounts(payee)
@@ -199,6 +208,7 @@ class QueryResult:
 
 
 @api_endpoint
+@fresh_login_required
 def get_query_result(query_string: str) -> Any:
     """Render a query result to HTML."""
     table = get_template_attribute("_query_table.html", "querytable")
@@ -216,6 +226,7 @@ def get_query_result(query_string: str) -> Any:
 
 
 @api_endpoint
+@fresh_login_required
 def get_extract(filename: str, importer: str) -> list[Any]:
     """Extract entries using the ingest framework."""
     entries = g.ledger.ingest.extract(filename, importer)
@@ -234,6 +245,7 @@ class Context:
 
 
 @api_endpoint
+@fresh_login_required
 def get_context(entry_hash: str) -> Context:
 
     """Entry context."""
@@ -242,6 +254,7 @@ def get_context(entry_hash: str) -> Context:
 
 
 @api_endpoint
+@fresh_login_required
 def get_move(account: str, new_name: str, filename: str) -> str:
     """Move a file."""
     if not g.ledger.options["documents"]:
@@ -268,6 +281,7 @@ def get_move(account: str, new_name: str, filename: str) -> str:
 
 
 @api_endpoint
+@fresh_login_required
 def get_payee_transaction(payee: str) -> Any:
     """Last transaction for the given payee."""
     entry = g.ledger.attributes.payee_transaction(payee)
@@ -275,6 +289,7 @@ def get_payee_transaction(payee: str) -> Any:
 
 
 @api_endpoint
+@fresh_login_required
 def get_source(filename: str) -> dict[str, str]:
     """Load one of the source files."""
     file_path = (
@@ -287,18 +302,21 @@ def get_source(filename: str) -> dict[str, str]:
 
 
 @api_endpoint
+@fresh_login_required
 def put_source(file_path: str, source: str, sha256sum: str) -> str:
     """Write one of the source files and return the updated sha256sum."""
     return g.ledger.file.set_source(Path(file_path), source, sha256sum)
 
 
 @api_endpoint
+@fresh_login_required
 def put_source_slice(entry_hash: str, source: str, sha256sum: str) -> str:
     """Write an entry source slice and return the updated sha256sum."""
     return g.ledger.file.save_entry_slice(entry_hash, source, sha256sum)
 
 
 @api_endpoint
+@fresh_login_required
 def delete_source_slice(entry_hash: str, sha256sum: str) -> str:
     """Delete an entry source slice."""
     g.ledger.file.delete_entry_slice(entry_hash, sha256sum)
@@ -306,12 +324,14 @@ def delete_source_slice(entry_hash: str, sha256sum: str) -> str:
 
 
 @api_endpoint
+@fresh_login_required
 def put_format_source(source: str) -> str:
     """Format beancount file."""
     return align(source, g.ledger.fava_options.currency_column)
 
 
 @api_endpoint
+@fresh_login_required
 def delete_document(filename: str) -> str:
     """Delete a document."""
     if not is_document_or_import_file(filename, g.ledger):
@@ -326,6 +346,7 @@ def delete_document(filename: str) -> str:
 
 
 @api_endpoint
+@fresh_login_required
 def put_add_document() -> str:
     """Upload a document."""
     if not g.ledger.options["documents"]:
@@ -363,6 +384,7 @@ def put_add_document() -> str:
 
 
 @api_endpoint
+@fresh_login_required
 def put_attach_document(filename: str, entry_hash: str) -> str:
     """Attach a document to an entry."""
     g.ledger.file.insert_metadata(entry_hash, "document", filename)
@@ -370,6 +392,7 @@ def put_attach_document(filename: str, entry_hash: str) -> str:
 
 
 @api_endpoint
+@fresh_login_required
 def put_add_entries(entries: list[Any]) -> str:
     """Add multiple entries."""
     try:
@@ -383,6 +406,7 @@ def put_add_entries(entries: list[Any]) -> str:
 
 
 @api_endpoint
+@fresh_login_required
 def put_upload_import_file() -> str:
     """Upload a file for importing."""
     upload = request.files.get("file", None)
@@ -409,6 +433,7 @@ def put_upload_import_file() -> str:
 
 
 @api_endpoint
+@fresh_login_required
 def get_events() -> list[Event]:
     """Get all (filtered) events."""
     g.ledger.changed()
@@ -416,6 +441,7 @@ def get_events() -> list[Event]:
 
 
 @api_endpoint
+@fresh_login_required
 def get_imports() -> list[FileImporters]:
     """Get a list of the importable files."""
     g.ledger.changed()
@@ -423,6 +449,7 @@ def get_imports() -> list[FileImporters]:
 
 
 @api_endpoint
+@fresh_login_required
 def get_documents() -> list[Document]:
     """Get all (filtered) documents."""
     g.ledger.changed()
@@ -441,6 +468,7 @@ class CommodityPairWithPrices:
 
 
 @api_endpoint
+@fresh_login_required
 def get_commodities() -> list[CommodityPairWithPrices]:
     """Get the prices for all commodity pairs."""
     g.ledger.changed()
@@ -463,6 +491,7 @@ class TreeReport:
 
 
 @api_endpoint
+@fresh_login_required
 def get_income_statement() -> TreeReport:
     """Get the data for the income statement."""
     g.ledger.changed()
@@ -497,14 +526,21 @@ def get_income_statement() -> TreeReport:
         root_tree.get(options["name_expenses"]),
     ]
 
+
     return TreeReport(
         g.filtered.date_range,
         charts,
         trees=[tree.serialise_with_context() for tree in trees],
     )
+    # return TreeReport(
+    #     DateRange(date(2023,10,1),date(2023,10,31)),
+    #     charts,
+    #     trees=[tree.serialise_with_context() for tree in trees],
+    # )
 
 
 @api_endpoint
+@fresh_login_required
 def get_balance_sheet() -> TreeReport:
     """Get the data for the balance sheet."""
     g.ledger.changed()
@@ -531,6 +567,7 @@ def get_balance_sheet() -> TreeReport:
 
 
 @api_endpoint
+@fresh_login_required
 def get_trial_balance() -> TreeReport:
     """Get the data for the trial balance."""
     g.ledger.changed()
@@ -579,6 +616,7 @@ class AccountReportTree:
 
 
 @api_endpoint
+@fresh_login_required
 def get_account_report() -> AccountReportJournal | AccountReportTree:
     """Get the data for the account report."""
     g.ledger.changed()

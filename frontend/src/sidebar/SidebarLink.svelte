@@ -7,7 +7,7 @@
   export let report: string;
   export let name: string;
   export let key: KeySpec | undefined = undefined;
-  export let remote: true | undefined = undefined;
+  export let remote: boolean = false;
   export let bubble: [number, "error" | "info"] | undefined = undefined;
 
   $: href = remote ? report : `${$base_url}${report}/${$synced_query_string}`;

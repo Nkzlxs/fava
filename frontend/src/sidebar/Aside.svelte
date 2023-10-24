@@ -72,6 +72,7 @@
   </Link>
   <Link report={"options"} name={_("Options")} key={"g o"} />
   <Link report={"help"} name={_("Help")} key={"g H"} />
+  <Link remote={true} report={"/logout"} name={_("Logout")} />
 </ul>
 {#if extension_reports.length}
   <ul class="navigation">
