@@ -25,6 +25,8 @@ from urllib.parse import parse_qsl
 from urllib.parse import urlencode
 from urllib.parse import urlparse
 from urllib.parse import urlunparse
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import login_required
 
 import markdown2  # type: ignore[import]
@@ -474,9 +476,14 @@ def create_app(
     """
     fava_app = Flask("fava")
     fava_app.secret_key = secrets_loader.SECRET_KEY
-    fava_app.config["REMEMBER_COOKIE_DURATION"] = timedelta(days=14)
 
-    user_management.init(fava_app)
+    limiter = Limiter(
+        get_remote_address,
+        app=fava_app,
+        default_limits=["360 per hour"],
+        storage_uri="memory://",
+    )
+    user_management.init(fava_app,limiter)
 
 
     fava_app.register_blueprint(json_api, url_prefix="/<bfile>/api")

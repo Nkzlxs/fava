@@ -1,6 +1,7 @@
 
 
-from flask import Request, redirect, render_template
+from flask import Flask, Request, redirect, render_template
+from flask_limiter import Limiter
 
 from flask_login import LoginManager, UserMixin, login_user, logout_user
 from flask_login import login_required
@@ -45,7 +46,7 @@ class User(UserMixin):
         return False
     
 
-def _login_manager_setup(login_manager,fava_app):
+def _login_manager_setup(login_manager,fava_app,limiter):
 
     user_list = {
         secrets_loader.USER_LIST[0]: User(secrets_loader.USER_LIST[0],secrets_loader.USER_LIST[1])
@@ -65,6 +66,7 @@ def _login_manager_setup(login_manager,fava_app):
         password = StringField("password")
 
     @fava_app.route("/login", methods=["GET", "POST"])
+    @limiter.limit("3 per hour")
     def login():
         form = LoginForm()
         print(form.username.data,form.password.data)
@@ -92,6 +94,6 @@ def _login_manager_setup(login_manager,fava_app):
         return redirect("/")
 
 
-def init(fava_app):
+def init(fava_app:Flask,limiter:Limiter):
     login_manager.init_app(fava_app)
-    _login_manager_setup(login_manager,fava_app)
+    _login_manager_setup(login_manager,fava_app,limiter)
