@@ -102,9 +102,10 @@
       if (aPost.amount == "") {
         $entryBalanceAmount += 0;
       } else {
-        $entryBalanceAmount += parseFloat(aPost.amount);
+        $entryBalanceAmount += Math.round(parseFloat(aPost.amount) * 100) / 100;
       }
     });
+    $entryBalanceAmount = Math.round($entryBalanceAmount * 100) / 100;
     if ($entryBalanceAmount !== 0) {
       $isEntryBalanced = false;
     } else {
