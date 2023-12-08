@@ -148,7 +148,7 @@ def api_endpoint(func: Callable[..., Any]) -> Callable[[], Response]:
     @json_api.route(f"/{name}", methods=[method])
     @wraps(func)
     def _wrapper() -> Response:
-        print(current_user.is_authenticated())
+        # print(current_user.is_authenticated())
         if not current_user.is_authenticated():
             return login_manager.unauthorized()
         if validator is not None:

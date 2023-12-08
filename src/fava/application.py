@@ -480,7 +480,7 @@ def create_app(
     limiter = Limiter(
         get_remote_address,
         app=fava_app,
-        default_limits=["360 per hour"],
+        default_limits=["720 per hour"],
         storage_uri="memory://",
     )
     user_management.init(fava_app,limiter)
