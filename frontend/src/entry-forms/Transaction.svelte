@@ -11,7 +11,11 @@
   import { _ } from "../i18n";
   import { notify_err } from "../notifications";
   import { payees } from "../stores";
-  import { entryBalanceAmount, isEntryBalanced } from "../stores/misc";
+  import {
+    isEditingEntry,
+    entryBalanceAmount,
+    isEntryBalanced,
+  } from "../stores/misc";
   import { format, parse } from "date-fns";
 
   import AddMetadataButton from "./AddMetadataButton.svelte";
@@ -23,7 +27,12 @@
   let suggestions: string[] | undefined;
 
   function removePosting(posting: Posting) {
-    entry.postings = entry.postings.filter((p) => p !== posting);
+    console.log(posting);
+    // TODO the before entry.postings already wrong
+    console.log(entry.postings);
+
+    entry.postings = [...entry.postings.filter((p) => p !== posting)];
+    console.log(entry.postings);
   }
 
   function addPosting() {
@@ -42,7 +51,7 @@
           notify_err(
             error,
             (err) =>
-              `Fetching account suggestions for payee ${payee} failed: ${err.message}`
+              `Fetching account suggestions for payee ${payee} failed: ${err.message}`,
           );
         });
     }

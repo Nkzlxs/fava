@@ -21,6 +21,7 @@
   let entryError: boolean = false;
 
   if ($isEditingEntry) {
+    console.log(posting.amount);
     let val = parseFloat(posting.amount);
     if (val > 0) {
       debitValue = posting.amount;
@@ -60,11 +61,11 @@
   $: {
     debit_amount_number = debitValue.replace(/[^\-?0-9.]/g, "");
     debitAmountSuggestions = $currencies.map(
-      (c) => `${debit_amount_number} ${c}`
+      (c) => `${debit_amount_number} ${c}`,
     );
     credit_amount_number = creditValue.replace(/[^\-?0-9.]/g, "");
     creditAmountSuggestions = $currencies.map(
-      (c) => `${credit_amount_number} ${c}`
+      (c) => `${credit_amount_number} ${c}`,
     );
   }
 

@@ -49,7 +49,9 @@
           oriSlice = res.slice;
           entryData.date = tmp["entry"]["date"];
           entryData.meta = tmp["entry"]["meta"];
-          entryData.postings = tmp["entry"]["postings"];
+          entryData.postings = [...tmp["entry"]["postings"]]; // Clone the postings
+          // TODO entryData.postings is different from the displayed one after removePosting()
+          console.log(entryData.postings);
 
           $isEditingEntry = true;
           entry = entryData;

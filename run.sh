@@ -1,1 +1,1 @@
-nohup make && fava ./data/nkzlxs.beancount &
+nohup make && ./venv/bin/fava ./data/nkzlxs.beancount &
